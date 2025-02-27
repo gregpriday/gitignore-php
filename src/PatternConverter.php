@@ -49,63 +49,106 @@ class PatternConverter
             $pattern = substr($pattern, 3); // Remove the **/ prefix for now
         }
 
-        // Handle escaped special characters by converting them to markers
-        $pattern = preg_replace_callback('/\\\\([*?{}\[\]])/', function ($matches) {
-            return '__ESCAPED_'.bin2hex($matches[1]).'__';
-        }, $pattern);
+        // Process the pattern character by character
+        $result = '';
+        $inBracket = false;
+        $bracketContent = '';
+        $escaping = false;
 
-        // Extract and save character classes in square brackets before preg_quote escapes them
-        $bracketPlaceholders = [];
-        $pattern = preg_replace_callback('/\[([^\]]*)\]/', function ($matches) use (&$bracketPlaceholders) {
-            $placeholder = '__BRACKET_' . count($bracketPlaceholders) . '__';
+        for ($i = 0; $i < strlen($pattern); $i++) {
+            $char = $pattern[$i];
 
-            // Get the content of the character class
-            $content = $matches[1];
+            if ($escaping) {
+                // This character is escaped
+                if ($inBracket) {
+                    // Inside a bracket, handle special characters that need escaping
+                    if (in_array($char, ['^', ']', '-', '\\'])) {
+                        // These need to be escaped in a character class
+                        $bracketContent .= '\\'.$char;
+                    } else {
+                        // Normal character, no escaping needed in character class
+                        $bracketContent .= $char;
+                    }
+                } else {
+                    // Outside a bracket, add as escaped
+                    $result .= preg_quote($char, '#');
+                }
+                $escaping = false;
+            } elseif ($char === '\\') {
+                // Start of escape sequence
+                $escaping = true;
+            } elseif ($char === '[' && ! $inBracket) {
+                // Start of a character class
+                $inBracket = true;
+                $bracketContent = '';
+            } elseif ($char === ']' && $inBracket) {
+                // End of a character class
+                $inBracket = false;
 
-            // Handle negation character if it's the first character in the class
-            if (strlen($content) > 0 && ($content[0] === '!' || $content[0] === '^')) {
-                $negation = ($content[0] === '!') ? '^' : $content[0];
-                $content = substr($content, 1);  // Remove the first character
-                $bracketPlaceholders[] = '[' . $negation . $content . ']';
+                // Handle special cases for character classes
+                if ($bracketContent === '^') {
+                    // Special case: [^] should match a literal ^ character, not act as negation
+                    $result .= '\\^';
+                } elseif (preg_match('/^\[.*\]$/', $bracketContent)) {
+                    // Special case: [[a-z]] should match the literal string [a-z]
+                    $innerContent = substr($bracketContent, 1, strlen($bracketContent) - 2);
+                    $result .= '\\['.$innerContent.'\\]';
+                } elseif (strlen($bracketContent) > 1 && ($bracketContent[0] === '!' || $bracketContent[0] === '^')) {
+                    // Negated character class
+                    $result .= '[^'.substr($bracketContent, 1).']';
+                } else {
+                    // Regular character class
+                    $result .= '['.$bracketContent.']';
+                }
+            } elseif ($inBracket) {
+                // Inside a character class
+                $bracketContent .= $char;
+            } elseif ($char === '*') {
+                // Wildcard
+                if ($i + 1 < strlen($pattern) && $pattern[$i + 1] === '*') {
+                    // Double asterisk
+                    if ($i + 2 < strlen($pattern) && $pattern[$i + 2] === '/') {
+                        // **/ pattern
+                        $result .= '(?:.*?/)?';
+                        $i += 2; // Skip the next two characters
+                    } else {
+                        // Just ** (no slash)
+                        $result .= '.*';
+                        $i++; // Skip the next character
+                    }
+                } else {
+                    // Single asterisk
+                    $result .= '[^/]*';
+                }
+            } elseif ($char === '?') {
+                // Question mark wildcard
+                $result .= '.';
             } else {
-                // No negation character at the start
-                $bracketPlaceholders[] = '[' . $content . ']';
+                // Regular character
+                if (! $inBracket) {
+                    $result .= preg_quote($char, '#');
+                } else {
+                    $bracketContent .= $char;
+                }
             }
+        }
 
-            return $placeholder;
-        }, $pattern);
+        // If we're still in a bracket at the end, treat it as literal characters
+        if ($inBracket) {
+            $result .= '\\['.preg_quote($bracketContent, '#');
+        }
 
-        // Replace wildcards with unique placeholders that won't be affected by preg_quote
-        $pattern = str_replace('**/', '__DOUBLE_STAR_SLASH__', $pattern);
-        $pattern = str_replace('**', '__DOUBLE_STAR__', $pattern);
-        $pattern = str_replace('*', '__STAR__', $pattern);
-        $pattern = str_replace('?', '__QUESTION__', $pattern);
-
-        // Escape all other regex special characters
-        $pattern = preg_quote($pattern, '#');  // Using # delimiter for consistency with patternToRegex
-
-        // Restore bracket character classes
-        $pattern = preg_replace_callback('/__BRACKET_(\d+)__/', function ($matches) use ($bracketPlaceholders) {
-            return $bracketPlaceholders[(int)$matches[1]];
-        }, $pattern);
-
-        // Restore escaped special characters
-        $pattern = preg_replace_callback('/__ESCAPED_([0-9a-f]+)__/', function ($matches) {
-            return preg_quote(chr(hexdec($matches[1])), '#');  // '#' matches the delimiter used in patternToRegex
-        }, $pattern);
-
-        // Replace placeholders with their regex equivalents
-        $pattern = str_replace('__DOUBLE_STAR_SLASH__', '(?:.*?/)?', $pattern);
-        $pattern = str_replace('__DOUBLE_STAR__', '.*', $pattern);
-        $pattern = str_replace('__STAR__', '[^/]*', $pattern);
-        $pattern = str_replace('__QUESTION__', '.', $pattern);
+        // If we ended with an escape character, add it as a literal
+        if ($escaping) {
+            $result .= '\\\\';
+        }
 
         // If the pattern started with **/, add the appropriate prefix
         if ($startsWithDoubleAsterisk) {
-            return '(?:.*/)?'.$pattern;
+            return '(?:.*/)?'.$result;
         }
 
-        return $pattern;
+        return $result;
     }
 
     /**

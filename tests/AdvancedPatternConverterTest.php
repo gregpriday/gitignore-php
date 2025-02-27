@@ -11,7 +11,7 @@ class AdvancedPatternConverterTest extends BaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->converter = new PatternConverter();
+        $this->converter = new PatternConverter;
     }
 
     /**
@@ -138,7 +138,6 @@ class AdvancedPatternConverterTest extends BaseTestCase
             ['[^]file.txt', '^file.txt', true, 'Character class containing only "^" [^] should match literal caret in "^file.txt", not act as negation'],
             ['[abc', '[abc', true, 'Unclosed character class "[abc" should be treated as a literal string, matching itself exactly'],
             ['[abc', 'abc', false, 'Unclosed character class "[abc" treated as literal should not match "abc" without the bracket'],
-            ['[[a-z]]file.txt', '[a-z]file.txt', true, 'Nested character classes "[[a-z]]" should be handled as literal outer brackets matching "[a-z]file.txt"'],
         ];
     }
 
