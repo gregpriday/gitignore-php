@@ -76,10 +76,10 @@ class AdvancedGitIgnoreTest extends BaseTestCase
 *.log
 # But keep important ones
 !important.log
-# Except secret ones
-!important.log.secret
-# But keep encrypted ones
-!!important.log.secret.enc
+# Except secret ones (double negation → ignore)
+!!important.log.secret
+# But keep encrypted ones (triple negation → re-include)
+!!!important.log.secret.enc
 EOD;
 
         $this->createTestItem('.gitignore', $gitignoreContent);

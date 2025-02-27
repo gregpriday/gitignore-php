@@ -114,11 +114,18 @@ class GitIgnoreManager
             if ($line === '' || strpos($line, '#') === 0) {
                 continue;
             }
-            $isNegation = false;
-            if (strpos($line, '!') === 0) {
-                $isNegation = true;
-                $line = ltrim(substr($line, 1));
+
+            // Handle negation (count number of leading exclamation marks)
+            $negationCount = 0;
+            while (strpos($line, '!') === 0) {
+                $negationCount++;
+                $line = substr($line, 1);
             }
+            // If negationCount is odd, it's a negation rule
+            $isNegation = ($negationCount % 2 === 1);
+
+            $line = ltrim($line);
+
             $directoryOnly = false;
             if (substr($line, -1) === '/') {
                 $directoryOnly = true;
