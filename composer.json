@@ -1,0 +1,45 @@
+{
+    "name": "gregpriday/gitignore-php",
+    "description": "A PHP Git ignore parser and manager. Useful for general file parsing.",
+    "type": "library",
+    "keywords": [
+        "gitignore",
+        "parser",
+        "manager",
+        "file",
+        "ignore",
+        "php"
+    ],
+    "homepage": "https://github.com/gregpriday/gitignore-php",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Greg Priday",
+            "email": "greg@siteorigin.com"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "symfony/finder": "^7.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "GregPriday\\GitIgnore\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "GregPriday\\GitIgnore\\Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "laravel/pint": "^1.18.3"
+    },
+    "scripts": {
+        "test": "phpunit",
+        "format": "pint"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
