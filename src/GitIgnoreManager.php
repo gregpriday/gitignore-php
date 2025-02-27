@@ -34,8 +34,6 @@ class GitIgnoreManager
 
     /**
      * Additional ignore file names to include.
-     *
-     * @var array
      */
     protected array $additionalIgnoreFiles = [];
 
@@ -45,9 +43,9 @@ class GitIgnoreManager
      * By default, only '.gitignore' files are loaded.
      * You may provide an array of additional filenames (e.g. ['.dockerignore']) to load them as well.
      *
-     * @param string $basePath The base directory to scan.
-     * @param bool $caseSensitive Whether pattern matching is case‑sensitive.
-     * @param array $additionalIgnoreFiles Additional ignore file names to load.
+     * @param  string  $basePath  The base directory to scan.
+     * @param  bool  $caseSensitive  Whether pattern matching is case‑sensitive.
+     * @param  array  $additionalIgnoreFiles  Additional ignore file names to load.
      *
      * @throws RuntimeException if the base path is not a valid directory.
      */
@@ -59,7 +57,7 @@ class GitIgnoreManager
         $this->basePath = realpath($basePath);
         $this->caseSensitive = $caseSensitive;
         $this->additionalIgnoreFiles = $additionalIgnoreFiles;
-        $this->patternConverter = new PatternConverter();
+        $this->patternConverter = new PatternConverter;
         $this->loadAllGitIgnoreFiles();
     }
 
@@ -85,9 +83,9 @@ class GitIgnoreManager
             $ignoreDir = ltrim($ignoreDir, DIRECTORY_SEPARATOR);
             $rules = $this->loadGitIgnoreFile($file->getRealPath());
             $this->ignoreRules[] = [
-                'dir'   => $ignoreDir,
+                'dir' => $ignoreDir,
                 'rules' => $rules,
-                'type'  => $file->getFilename(),
+                'type' => $file->getFilename(),
             ];
         }
 
@@ -95,6 +93,7 @@ class GitIgnoreManager
         usort($this->ignoreRules, function ($a, $b) {
             $depthA = $a['dir'] === '' ? 0 : substr_count($a['dir'], DIRECTORY_SEPARATOR) + 1;
             $depthB = $b['dir'] === '' ? 0 : substr_count($b['dir'], DIRECTORY_SEPARATOR) + 1;
+
             return $depthA <=> $depthB;
         });
     }
@@ -138,14 +137,15 @@ class GitIgnoreManager
                     continue;
                 }
                 $rules[] = [
-                    'pattern'         => $pattern,
-                    'isNegation'      => $isNegation,
-                    'directoryOnly'   => $directoryOnly,
+                    'pattern' => $pattern,
+                    'isNegation' => $isNegation,
+                    'directoryOnly' => $directoryOnly,
                     'hasLeadingSlash' => $hasLeadingSlash,
-                    'containsSlash'   => strpos($pattern, '/') !== false,
+                    'containsSlash' => strpos($pattern, '/') !== false,
                 ];
             }
         }
+
         return $rules;
     }
 
@@ -163,7 +163,7 @@ class GitIgnoreManager
             if ($ignoreDir === '') {
                 $relative = $relativePath;
             } else {
-                $prefix = str_replace('\\', '/', $ignoreDir) . '/';
+                $prefix = str_replace('\\', '/', $ignoreDir).'/';
                 if (! str_starts_with($relativePath, $prefix)) {
                     continue;
                 }
@@ -188,7 +188,7 @@ class GitIgnoreManager
                 }
             }
             if ($ignored && $file->isDir()) {
-                $dirPrefix = $relativePath . '/';
+                $dirPrefix = $relativePath.'/';
                 if ($this->isParentIgnored($dirPrefix)) {
                     return false;
                 }
@@ -197,6 +197,7 @@ class GitIgnoreManager
         if ($this->isParentIgnored($relativePath)) {
             return false;
         }
+
         return ! $ignored;
     }
 
@@ -210,7 +211,7 @@ class GitIgnoreManager
         foreach ($this->ignoreRules as $entry) {
             foreach ($entry['rules'] as $rule) {
                 if ($rule['directoryOnly'] && ! $rule['isNegation']) {
-                    $ignorePath = rtrim(($entry['dir'] ? $entry['dir'] . '/' : '') . $rule['pattern'], '/');
+                    $ignorePath = rtrim(($entry['dir'] ? $entry['dir'].'/' : '').$rule['pattern'], '/');
                     $ignorePath = str_replace('\\', '/', $ignorePath);
                     if ($ignorePath === '') {
                         continue;
@@ -223,14 +224,15 @@ class GitIgnoreManager
                 }
             }
         }
+
         return false;
     }
 
     /**
      * Check if a given pattern matches the subject.
      *
-     * @param string $pattern The ignore pattern.
-     * @param string $subject The string to match against.
+     * @param  string  $pattern  The ignore pattern.
+     * @param  string  $subject  The string to match against.
      * @return bool Whether the subject matches the pattern.
      */
     public function matchPattern(string $pattern, string $subject): bool
@@ -255,7 +257,7 @@ class GitIgnoreManager
      *
      * This method is now a wrapper around PatternConverter::convertPatternToRegex.
      *
-     * @param string $pattern The ignore pattern.
+     * @param  string  $pattern  The ignore pattern.
      * @return string The corresponding regular expression.
      *
      * @deprecated Use PatternConverter::convertPatternToRegex directly
