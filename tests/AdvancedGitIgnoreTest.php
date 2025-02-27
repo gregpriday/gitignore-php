@@ -379,5 +379,4 @@ EOD;
         $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('123.txt'), '', '123.txt')), '123.txt should be ignored due to regex negation');
         $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('test.txt'), '', 'test.txt')), 'test.txt should be accepted (regex does not match)');
     }
-
 }

@@ -37,7 +37,7 @@
         "laravel/pint": "^1.18.3"
     },
     "scripts": {
-        "test": "phpunit",
+        "test": "phpunit tests",
         "format": "pint"
     },
     "minimum-stability": "stable",
