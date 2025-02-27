@@ -108,7 +108,8 @@ EOD;
      */
     public function test_deep_directory_structure(): void
     {
-        $gitignoreContent = 'deep/*/logs/*.log';
+        // Use double asterisk to match multiple directory levels
+        $gitignoreContent = 'deep/**/logs/*.log';
         $this->createTestItem('.gitignore', $gitignoreContent);
 
         // Create a very deep path

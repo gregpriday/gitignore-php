@@ -110,10 +110,12 @@ class GitIgnoreManager
         $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         foreach ($lines as $line) {
             $line = trim($line);
-            $line = stripcslashes($line);
-            if ($line === '' || strpos($line, '#') === 0) {
+
+            // Skip empty lines or comments (lines actually starting with #)
+            if ($line === '' || (strlen($line) > 0 && $line[0] === '#')) {
                 continue;
             }
+            $line = stripcslashes($line);
 
             // Handle negation (count number of leading exclamation marks)
             $negationCount = 0;
