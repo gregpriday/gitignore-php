@@ -44,35 +44,61 @@ class PatternConverter
     {
         // First identify if we're dealing with a pattern that starts with **/
         $startsWithDoubleAsterisk = false;
-        if (strpos($pattern, '**/') === 0) {
+        if (str_starts_with($pattern, '**/')) {
             $startsWithDoubleAsterisk = true;
             $pattern = substr($pattern, 3); // Remove the **/ prefix for now
         }
 
         // Handle escaped special characters by converting them to markers
         $pattern = preg_replace_callback('/\\\\([*?{}\[\]])/', function ($matches) {
-            return '{{ESCAPED_'.bin2hex($matches[1]).'}}';
+            return '__ESCAPED_'.bin2hex($matches[1]).'__';
+        }, $pattern);
+
+        // Extract and save character classes in square brackets before preg_quote escapes them
+        $bracketPlaceholders = [];
+        $pattern = preg_replace_callback('/\[([^\]]*)\]/', function ($matches) use (&$bracketPlaceholders) {
+            $placeholder = '__BRACKET_' . count($bracketPlaceholders) . '__';
+
+            // Get the content of the character class
+            $content = $matches[1];
+
+            // Handle negation character if it's the first character in the class
+            if (strlen($content) > 0 && ($content[0] === '!' || $content[0] === '^')) {
+                $negation = ($content[0] === '!') ? '^' : $content[0];
+                $content = substr($content, 1);  // Remove the first character
+                $bracketPlaceholders[] = '[' . $negation . $content . ']';
+            } else {
+                // No negation character at the start
+                $bracketPlaceholders[] = '[' . $content . ']';
+            }
+
+            return $placeholder;
         }, $pattern);
 
         // Replace wildcards with unique placeholders that won't be affected by preg_quote
-        $pattern = str_replace('**/', '{{DOUBLE_STAR_SLASH}}', $pattern);
-        $pattern = str_replace('**', '{{DOUBLE_STAR}}', $pattern);
-        $pattern = str_replace('*', '{{STAR}}', $pattern);
-        $pattern = str_replace('?', '{{QUESTION}}', $pattern);
-
-        // Restore escaped special characters
-        $pattern = preg_replace_callback('/{{ESCAPED_([0-9a-f]+)}}/', function ($matches) {
-            return chr(hexdec($matches[1]));
-        }, $pattern);
+        $pattern = str_replace('**/', '__DOUBLE_STAR_SLASH__', $pattern);
+        $pattern = str_replace('**', '__DOUBLE_STAR__', $pattern);
+        $pattern = str_replace('*', '__STAR__', $pattern);
+        $pattern = str_replace('?', '__QUESTION__', $pattern);
 
         // Escape all other regex special characters
-        $pattern = preg_quote($pattern, '/');
+        $pattern = preg_quote($pattern, '#');  // Using # delimiter for consistency with patternToRegex
+
+        // Restore bracket character classes
+        $pattern = preg_replace_callback('/__BRACKET_(\d+)__/', function ($matches) use ($bracketPlaceholders) {
+            return $bracketPlaceholders[(int)$matches[1]];
+        }, $pattern);
+
+        // Restore escaped special characters
+        $pattern = preg_replace_callback('/__ESCAPED_([0-9a-f]+)__/', function ($matches) {
+            return preg_quote(chr(hexdec($matches[1])), '#');  // '#' matches the delimiter used in patternToRegex
+        }, $pattern);
 
         // Replace placeholders with their regex equivalents
-        $pattern = str_replace(preg_quote('{{DOUBLE_STAR_SLASH}}', '/'), '(?:.*?/)?', $pattern);
-        $pattern = str_replace(preg_quote('{{DOUBLE_STAR}}', '/'), '.*', $pattern);
-        $pattern = str_replace(preg_quote('{{STAR}}', '/'), '[^/]*', $pattern);
-        $pattern = str_replace(preg_quote('{{QUESTION}}', '/'), '.', $pattern);
+        $pattern = str_replace('__DOUBLE_STAR_SLASH__', '(?:.*?/)?', $pattern);
+        $pattern = str_replace('__DOUBLE_STAR__', '.*', $pattern);
+        $pattern = str_replace('__STAR__', '[^/]*', $pattern);
+        $pattern = str_replace('__QUESTION__', '.', $pattern);
 
         // If the pattern started with **/, add the appropriate prefix
         if ($startsWithDoubleAsterisk) {
@@ -189,6 +215,9 @@ class PatternConverter
     public function patternToRegex(string $pattern): string
     {
         $regex = $this->convertPatternToRegex($pattern);
+
+        // Escape the '#' character since we're using it as our delimiter
+        $regex = str_replace('#', '\#', $regex);
 
         return '#^'.$regex.'$#';
     }

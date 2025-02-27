@@ -115,6 +115,12 @@ class GitIgnoreManager
             if ($line === '' || (strlen($line) > 0 && $line[0] === '#')) {
                 continue;
             }
+
+            // Handle quoted patterns - remove the quotes but preserve spaces
+            if (strlen($line) >= 2 && $line[0] === '"' && $line[strlen($line) - 1] === '"') {
+                $line = substr($line, 1, strlen($line) - 2);
+            }
+
             $line = stripcslashes($line);
 
             // Handle negation (count number of leading exclamation marks)
