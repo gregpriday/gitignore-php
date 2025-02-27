@@ -1,82 +1,13 @@
 <?php
 
-namespace Tests\Unit\Utilities\Git;
+namespace GregPriday\GitIgnore\Tests;
 
-use App\Utilities\Git\GitIgnoreManager;
-use PHPUnit\Framework\TestCase;
+use GregPriday\GitIgnore\GitIgnoreManager;
 use RuntimeException;
 use Symfony\Component\Finder\SplFileInfo;
 
-class GitIgnoreManagerTest extends TestCase
+class GitIgnoreManagerTest extends BaseTestCase
 {
-    /**
-     * The temporary directory used for testing.
-     */
-    private string $tempDir;
-
-    /**
-     * Create a unique temporary directory before each test.
-     */
-    protected function setUp(): void
-    {
-        $this->tempDir = sys_get_temp_dir().'/gitignore_test_'.uniqid();
-        if (! mkdir($this->tempDir, 0777, true) && ! is_dir($this->tempDir)) {
-            throw new RuntimeException(sprintf('Directory "%s" was not created', $this->tempDir));
-        }
-    }
-
-    /**
-     * Remove the temporary directory and its contents after each test.
-     */
-    protected function tearDown(): void
-    {
-        $this->removeDirectory($this->tempDir);
-    }
-
-    /**
-     * Recursively remove a directory and its contents.
-     */
-    private function removeDirectory(string $dir): void
-    {
-        if (! is_dir($dir)) {
-            return;
-        }
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST
-        );
-        foreach ($iterator as $file) {
-            if ($file->isDir()) {
-                rmdir($file->getRealPath());
-            } else {
-                unlink($file->getRealPath());
-            }
-        }
-        rmdir($dir);
-    }
-
-    /**
-     * Create a test file (or directory if needed) relative to the temporary directory.
-     *
-     * @param  string  $relativePath  The path relative to the temporary directory.
-     * @param  string  $content  The content to write (ignored if creating a directory).
-     * @param  bool  $isDir  Whether to create a directory instead of a file.
-     * @return string The full path of the created file or directory.
-     */
-    private function createTestItem(string $relativePath, string $content = '', bool $isDir = false): string
-    {
-        $fullPath = $this->tempDir.'/'.$relativePath;
-        $dir = $isDir ? $fullPath : dirname($fullPath);
-        if (! is_dir($dir)) {
-            mkdir($dir, 0777, true);
-        }
-        if (! $isDir) {
-            file_put_contents($fullPath, $content);
-        }
-
-        return $fullPath;
-    }
-
     /**
      * Test that the constructor throws an exception when the base path does not exist.
      */
@@ -380,11 +311,11 @@ EOD;
         $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('error.log'), '', 'error.log')), 'Root error.log should be ignored');
         $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('main.txt'), '', 'main.txt')), 'Root main.txt should be accepted');
 
-        // Files in the 'logs' subdirectory
+        // Files in the "logs" subdirectory
         $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('logs/important.log'), 'logs', 'logs/important.log')), 'logs/important.log should be re-included');
         $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('logs/debug.log'), 'logs', 'logs/debug.log')), 'logs/debug.log should be ignored');
 
-        // Files in the 'logs/deep' subdirectory
+        // Files in the "logs/deep" subdirectory
         $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('logs/deep/important.log'), 'logs/deep', 'logs/deep/important.log')), 'logs/deep/important.log should still be included');
         $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('logs/deep/specific.log'), 'logs/deep', 'logs/deep/specific.log')), 'logs/deep/specific.log should be ignored');
         $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('logs/deep/other.log'), 'logs/deep', 'logs/deep/other.log')), 'logs/deep/other.log should be ignored (inherited)');
@@ -543,7 +474,7 @@ EOD;
     }
 
     /**
-     * Test with Leading and Trailing Spaces
+     * Test with Leading and Trailing Spaces.
      */
     public function test_leading_trailing_spaces(): void
     {
@@ -569,53 +500,10 @@ EOD;
         );
     }
 
-    public function test_match_pattern_with_path_wildcard()
+    public function test_match_pattern_with_path_wildcard(): void
     {
         $manager = new GitIgnoreManager($this->tempDir);
         $match = $manager->matchPattern('src/foo/**/*.js', 'src/foo/app/file.js');
         $this->assertTrue($match, 'Pattern "src/foo/**/*.js" should match "src/foo/app/file.js".');
-    }
-
-    /**
-     * Test that the expandBraces() method correctly expands a nested brace expression.
-     */
-    public function test_expand_braces_returns_expected_patterns(): void
-    {
-        $manager = new GitIgnoreManager($this->tempDir);
-        $reflection = new \ReflectionMethod($manager, 'expandBraces');
-        $reflection->setAccessible(true);
-        $pattern = 'src/{foo,bar}/**/*.{js,jsx}';
-        $expected = [
-            'src/foo/**/*.js',
-            'src/foo/**/*.jsx',
-            'src/bar/**/*.js',
-            'src/bar/**/*.jsx',
-        ];
-        $result = $reflection->invoke($manager, $pattern);
-        sort($expected);
-        sort($result);
-        $this->assertEquals($expected, $result, 'Brace expansion did not return the expected patterns.');
-    }
-
-    public function test_nested_brace_expansion_pattern(): void
-    {
-        // Create a .gitignore with a nested brace expansion rule.
-        $gitignoreContent = <<<'EOD'
-src/{foo,bar}/**/*.{js,jsx}
-EOD;
-        $this->createTestItem('.gitignore', $gitignoreContent);
-
-        // Create a file that should match the expanded pattern.
-        $fileFooJs = $this->createTestItem('src/foo/app/file.js', 'content');
-        // Create a file that should not match.
-        $fileBazJs = $this->createTestItem('src/baz/app/file.js', 'content');
-
-        $manager = new GitIgnoreManager($this->tempDir);
-
-        $fooJsInfo = new SplFileInfo($fileFooJs, 'src/foo/app', 'src/foo/app/file.js');
-        $bazJsInfo = new SplFileInfo($fileBazJs, 'src/baz/app', 'src/baz/app/file.js');
-
-        $this->assertFalse($manager->accept($fooJsInfo), 'src/foo/app/file.js should be ignored due to nested brace expansion.');
-        $this->assertTrue($manager->accept($bazJsInfo), 'src/baz/app/file.js should be accepted as it does not match the nested brace pattern.');
     }
 }

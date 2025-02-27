@@ -1,11 +1,10 @@
 <?php
 
-namespace Tests;
+namespace GregPriday\GitIgnore\Tests;
 
-use App\Utilities\Git\PatternConverter;
-use PHPUnit\Framework\TestCase;
+use GregPriday\GitIgnore\PatternConverter;
 
-class PatternConverterTest extends TestCase
+class PatternConverterTest extends BaseTestCase
 {
     private PatternConverter $converter;
 
