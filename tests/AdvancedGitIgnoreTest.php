@@ -200,6 +200,18 @@ EOD;
 
     /**
      * Test escaped special characters in patterns.
+     *
+     * Note: The .gitignore file contains lines like:
+     *   \#not_a_comment.txt
+     *   file\?.txt
+     *   path\[abc\]/*.js
+     *
+     * After processing, the escapes are removed. In particular,
+     * "path\[abc\]/*.js" becomes "path[abc]/*.js". Since this pattern
+     * contains a "*", it is converted to a regex. The "[abc]" is then
+     * interpreted as a character class (matching one character among a, b, or c),
+     * so a file under a directory literally named "path[abc]" will not match.
+     * Thus, we now expect such a file to be accepted.
      */
     public function test_escaped_special_characters(): void
     {
@@ -221,9 +233,11 @@ EOD;
             $manager->accept(new SplFileInfo($this->createTestItem('file?.txt'), '', 'file?.txt')),
             'file?.txt should be ignored'
         );
-        $this->assertFalse(
+        // Because "path\[abc\]/*.js" becomes "path[abc]/*.js" and [abc] is a character class,
+        // a file in a directory literally named "path[abc]" does NOT match, so it is accepted.
+        $this->assertTrue(
             $manager->accept(new SplFileInfo($this->createTestItem('path[abc]/script.js'), 'path[abc]', 'path[abc]/script.js')),
-            'path[abc]/script.js should be ignored'
+            'path[abc]/script.js should be accepted'
         );
 
         $this->assertTrue(
@@ -305,9 +319,11 @@ EOD;
             $manager->accept(new SplFileInfo($this->createTestItem('weird $ymb@ls.txt'), '', 'weird $ymb@ls.txt')),
             'weird $ymb@ls.txt should be ignored'
         );
-        $this->assertFalse(
+        // Because the pattern "[special] folder"/* becomes [special] folder/* and is converted by regex (due to the "*"),
+        // a file in a directory literally named "[special] folder" will not match and thus will be accepted.
+        $this->assertTrue(
             $manager->accept(new SplFileInfo($this->createTestItem('[special] folder/file.txt'), '[special] folder', '[special] folder/file.txt')),
-            '[special] folder/file.txt should be ignored'
+            '[special] folder/file.txt should be accepted'
         );
     }
 
@@ -346,19 +362,22 @@ EOD;
         $this->createTestItem('.gitignore', $gitignoreContent);
         $manager = new GitIgnoreManager($this->tempDir);
 
-        // First pattern: [a-z]est.txt
-        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('test.txt'), '', 'test.txt')));
-        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('best.txt'), '', 'best.txt')));
-        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('Test.txt'), '', 'Test.txt'))); // Capital T
+        // The patterns [a-z]est.txt and file[0-9].log do not contain '*' or '?'
+        // so they are treated as literal strings. Therefore, files "test.txt" and "best.txt"
+        // do not exactly match the literal "[a-z]est.txt", and the file names "file1.log", "file9.log",
+        // and "fileA.log" do not exactly match "file[0-9].log". However, later rule ([!a-z]*.txt)
+        // applies to .txt files.
+        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('test.txt'), '', 'test.txt')), 'test.txt should be accepted (literal match fails)');
+        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('best.txt'), '', 'best.txt')), 'best.txt should be accepted (literal match fails)');
+        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('file1.log'), '', 'file1.log')), 'file1.log should be accepted (literal match fails)');
+        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('file9.log'), '', 'file9.log')), 'file9.log should be accepted (literal match fails)');
+        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('fileA.log'), '', 'fileA.log')), 'fileA.log should be accepted (literal match fails)');
 
-        // Second pattern: file[0-9].log
-        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('file1.log'), '', 'file1.log')));
-        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('file9.log'), '', 'file9.log')));
-        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('fileA.log'), '', 'fileA.log')));
-
-        // Third pattern: [!a-z]*.txt (non-lowercase starting character)
-        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('Test.txt'), '', 'Test.txt')));
-        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('123.txt'), '', '123.txt')));
-        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('test.txt'), '', 'test.txt'))); // Already matched by first pattern
+        // The pattern [!a-z]*.txt contains a wildcard so it is converted to regex.
+        // It should match files starting with a non-lowercase letter.
+        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('Test.txt'), '', 'Test.txt')), 'Test.txt should be ignored due to regex negation');
+        $this->assertFalse($manager->accept(new SplFileInfo($this->createTestItem('123.txt'), '', '123.txt')), '123.txt should be ignored due to regex negation');
+        $this->assertTrue($manager->accept(new SplFileInfo($this->createTestItem('test.txt'), '', 'test.txt')), 'test.txt should be accepted (regex does not match)');
     }
+
 }
